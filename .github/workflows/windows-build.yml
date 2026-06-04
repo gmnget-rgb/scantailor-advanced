@@ -28,7 +28,7 @@ jobs:
       - name: Build Windows dependencies with MXE
         run: |
           cd $HOME/mxe
-          make MXE_TARGETS=x86_64-w64-mingw32.static qt5 jpeg libpng tiff zlib boost
+          make MXE_TARGETS=x86_64-w64-mingw32.static qtbase jpeg libpng tiff zlib boost
 
       - name: Build ScanTailor Advanced for Windows
         run: |
@@ -38,7 +38,8 @@ jobs:
       - name: Package EXE
         run: |
           mkdir -p package
-          cp build-win-static/scantailor-advanced.exe package/
+          find build-win-static -name "*.exe" -print
+          cp $(find build-win-static -name "scantailor-advanced.exe" -o -name "scantailor.exe" | head -1) package/
           cd package
           zip -r ../scantailor-advanced-windows-x64.zip .
 
