@@ -1,0 +1,50 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf automake autopoint bash bison bzip2 flex gettext \
+            git g++ gperf intltoolize libc6-dev-i386 libgdk-pixbuf2.0-dev \
+            libltdl-dev libssl-dev libtool-bin libxml-parser-perl \
+            make openssl patch perl pkg-config python3 ruby sed unzip wget \
+            xz-utils cmake ninja-build zip
+
+      - name: Clone MXE
+        run: |
+          git clone https://github.com/mxe/mxe.git $HOME/mxe
+
+      - name: Build Windows dependencies with MXE
+        working-directory: ${{ github.workspace }}
+        run: |
+          cd $HOME/mxe
+          make MXE_TARGETS=x86_64-w64-mingw32.static qt5 jpeg libpng tiff zlib boost
+
+      - name: Build ScanTailor Advanced for Windows
+        run: |
+          chmod +x ./build-windows.sh
+          MXE_DIR=$HOME/mxe ./build-windows.sh static
+
+      - name: Package EXE
+        run: |
+          mkdir -p package
+          cp build-win-static/scantailor-advanced.exe package/
+          cd package
+          zip -r ../scantailor-advanced-windows-x64.zip .
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: scantailor-advanced-windows-x64
+          path: scantailor-advanced-windows-x64.zip
