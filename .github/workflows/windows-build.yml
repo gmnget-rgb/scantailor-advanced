@@ -23,23 +23,42 @@ jobs:
 
       - name: Clone MXE
         run: |
-          git clone https://github.com/mxe/mxe.git $HOME/mxe
+          git clone https://github.com/mxe/mxe.git "$HOME/mxe"
 
       - name: Build Windows dependencies with MXE
         run: |
-          cd $HOME/mxe
-          make MXE_TARGETS=x86_64-w64-mingw32.static qtbase jpeg libpng tiff zlib boost
+          cd "$HOME/mxe"
+          make MXE_TARGETS=x86_64-w64-mingw32.static \
+            qtbase qttools jpeg libpng tiff zlib boost
 
       - name: Build ScanTailor Advanced for Windows
         run: |
-          chmod +x ./build-windows.sh
-          MXE_DIR=$HOME/mxe ./build-windows.sh static
+          export PATH="$HOME/mxe/usr/bin:$PATH"
+
+          x86_64-w64-mingw32.static-cmake \
+            -S . \
+            -B build-win-static \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+          cmake --build build-win-static --config Release
 
       - name: Package EXE
         run: |
           mkdir -p package
+
+          echo "Found EXE files:"
           find build-win-static -name "*.exe" -print
-          cp $(find build-win-static -name "scantailor-advanced.exe" -o -name "scantailor.exe" | head -1) package/
+
+          EXE_FILE="$(find build-win-static \( -name "scantailor-advanced.exe" -o -name "scantailor.exe" \) | head -1)"
+
+          if [ -z "$EXE_FILE" ]; then
+            echo "Error: ScanTailor EXE was not found."
+            exit 1
+          fi
+
+          cp "$EXE_FILE" package/
+
           cd package
           zip -r ../scantailor-advanced-windows-x64.zip .
 
