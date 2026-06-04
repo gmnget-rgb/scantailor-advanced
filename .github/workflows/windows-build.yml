@@ -21,11 +21,22 @@ jobs:
             make openssl patch perl pkg-config python3 python3-mako ruby sed \
             unzip wget xz-utils cmake ninja-build zip lzip
 
+      - name: Cache MXE
+        id: cache-mxe
+        uses: actions/cache@v4
+        with:
+          path: ~/mxe
+          key: mxe-${{ runner.os }}-x86_64-static-qtbase-qttools-boost-v1
+          restore-keys: |
+            mxe-${{ runner.os }}-x86_64-static-
+
       - name: Clone MXE
+        if: steps.cache-mxe.outputs.cache-hit != 'true'
         run: |
           git clone https://github.com/mxe/mxe.git "$HOME/mxe"
 
       - name: Build Windows dependencies with MXE
+        if: steps.cache-mxe.outputs.cache-hit != 'true'
         run: |
           cd "$HOME/mxe"
           make MXE_TARGETS=x86_64-w64-mingw32.static \
