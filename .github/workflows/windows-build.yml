@@ -34,6 +34,12 @@ jobs:
       - name: Build ScanTailor Advanced for Windows
         run: |
           export PATH="$HOME/mxe/usr/bin:$PATH"
+          export CCACHE_DISABLE=1
+
+          pwd
+          ls -la
+          which x86_64-w64-mingw32.static-cmake
+          which x86_64-w64-mingw32.static-gcc
 
           x86_64-w64-mingw32.static-cmake \
             -S . \
