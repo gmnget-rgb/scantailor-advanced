@@ -19,14 +19,21 @@ jobs:
             git g++ gperf intltool libc6-dev-i386 libgdk-pixbuf-2.0-dev \
             libltdl-dev libssl-dev libtool-bin libxml-parser-perl \
             make openssl patch perl pkg-config python3 python3-mako ruby sed \
-            unzip wget xz-utils cmake ninja-build zip lzip
+            unzip wget xz-utils cmake ninja-build zip lzip \
+            libgl1-mesa-dev libglu1-mesa-dev libegl1-mesa-dev mesa-common-dev \
+            libxkbcommon-dev libxkbcommon-x11-dev \
+            libxcb1-dev libxcb-cursor-dev libxcb-glx0-dev libxcb-icccm4-dev \
+            libxcb-image0-dev libxcb-keysyms1-dev libxcb-randr0-dev \
+            libxcb-render-util0-dev libxcb-render0-dev libxcb-shape0-dev \
+            libxcb-shm0-dev libxcb-sync-dev libxcb-xfixes0-dev \
+            libxcb-xinerama0-dev libxcb-xinput-dev libxcb-xkb-dev
 
       - name: Cache MXE
         id: cache-mxe
         uses: actions/cache@v4
         with:
           path: ~/mxe
-          key: mxe-${{ runner.os }}-x86_64-static-qt6-v3
+          key: mxe-${{ runner.os }}-x86_64-static-qt6-v4
           restore-keys: |
             mxe-${{ runner.os }}-x86_64-static-qt6-
 
@@ -41,7 +48,13 @@ jobs:
           cd "$HOME/mxe"
 
           make MXE_TARGETS=x86_64-w64-mingw32.static \
-            qt6-qtbase qt6-qttools jpeg libpng tiff zlib boost
+            qt6-qtbase qt6-qttools jpeg libpng tiff zlib boost || {
+              echo "MXE build failed. Showing Qt6 logs:"
+              echo "----------------------------------------"
+              find "$HOME/mxe/log" -name "qt6-qtbase*" -print -exec tail -n 120 {} \;
+              echo "----------------------------------------"
+              exit 1
+            }
 
       - name: Verify MXE and Qt6
         run: |
