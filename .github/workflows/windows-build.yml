@@ -79,6 +79,46 @@ jobs:
           echo "Qt6Config.cmake found at:"
           echo "$QT6_CONFIG"
 
+      - name: Patch CMake copy target for MXE static build
+        run: |
+          echo "Patching cmake/CopyToBuildDir.cmake..."
+
+          if [ ! -f "cmake/CopyToBuildDir.cmake" ]; then
+            echo "cmake/CopyToBuildDir.cmake not found. Skipping patch."
+            exit 0
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path("cmake/CopyToBuildDir.cmake")
+          text = p.read_text()
+
+          original = text
+
+          # The original CMake file references:
+          #   $<TARGET_FILE_DIR:scantailor>
+          #
+          # During MXE static cross-build, this can fail at CMake generate time
+          # with:
+          #   No target "scantailor"
+          #
+          # For static Windows build, use the build directory instead.
+          text = text.replace(
+              "$<TARGET_FILE_DIR:scantailor>",
+              "${CMAKE_BINARY_DIR}"
+          )
+
+          if text != original:
+              p.write_text(text)
+              print("Patch applied: TARGET_FILE_DIR:scantailor replaced with CMAKE_BINARY_DIR")
+          else:
+              print("Patch not needed or pattern not found.")
+          PY
+
+          echo "Patch result:"
+          grep -n "TARGET_FILE_DIR\|CMAKE_BINARY_DIR" cmake/CopyToBuildDir.cmake || true
+
       - name: Build ScanTailor Advanced for Windows
         run: |
           export PATH="$HOME/mxe/usr/bin:$PATH"
@@ -87,6 +127,12 @@ jobs:
           rm -rf build-win-static
 
           QT6_CONFIG="$(find "$HOME/mxe/usr/x86_64-w64-mingw32.static" -name "Qt6Config.cmake" | head -1)"
+
+          if [ -z "$QT6_CONFIG" ]; then
+            echo "Error: Qt6Config.cmake not found."
+            exit 1
+          fi
+
           QT6_DIR="$(dirname "$QT6_CONFIG")"
 
           echo "Using Qt6_DIR=$QT6_DIR"
@@ -97,7 +143,8 @@ jobs:
             -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="$HOME/mxe/usr/x86_64-w64-mingw32.static" \
-            -DQt6_DIR="$QT6_DIR"
+            -DQt6_DIR="$QT6_DIR" \
+            -Wno-dev
 
           cmake --build build-win-static --config Release --parallel
 
