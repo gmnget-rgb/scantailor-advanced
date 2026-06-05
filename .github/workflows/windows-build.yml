@@ -1,1 +1,117 @@
-key: mxe-${{ runner.os }}-x86_64-static-qt6-v3
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            autoconf automake autopoint bash bison bzip2 flex gettext \
+            git g++ gperf intltool libc6-dev-i386 libgdk-pixbuf-2.0-dev \
+            libltdl-dev libssl-dev libtool-bin libxml-parser-perl \
+            make openssl patch perl pkg-config python3 python3-mako ruby sed \
+            unzip wget xz-utils cmake ninja-build zip lzip
+
+      - name: Cache MXE
+        id: cache-mxe
+        uses: actions/cache@v4
+        with:
+          path: ~/mxe
+          key: mxe-${{ runner.os }}-x86_64-static-qt6-v3
+          restore-keys: |
+            mxe-${{ runner.os }}-x86_64-static-qt6-
+
+      - name: Clone MXE
+        if: steps.cache-mxe.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/mxe/mxe.git "$HOME/mxe"
+
+      - name: Build Windows dependencies with MXE
+        if: steps.cache-mxe.outputs.cache-hit != 'true'
+        run: |
+          cd "$HOME/mxe"
+
+          make MXE_TARGETS=x86_64-w64-mingw32.static \
+            qt6-qtbase qt6-qttools jpeg libpng tiff zlib boost
+
+      - name: Verify MXE and Qt6
+        run: |
+          export PATH="$HOME/mxe/usr/bin:$PATH"
+
+          echo "Checking MXE tools..."
+          which x86_64-w64-mingw32.static-cmake
+          which x86_64-w64-mingw32.static-gcc
+          which x86_64-w64-mingw32.static-g++
+
+          echo "Checking Qt6Config.cmake..."
+          find "$HOME/mxe/usr/x86_64-w64-mingw32.static" -name "Qt6Config.cmake" -print
+
+          QT6_CONFIG="$(find "$HOME/mxe/usr/x86_64-w64-mingw32.static" -name "Qt6Config.cmake" | head -1)"
+
+          if [ -z "$QT6_CONFIG" ]; then
+            echo "Error: Qt6Config.cmake not found."
+            echo "Qt6 was not built correctly by MXE."
+            exit 1
+          fi
+
+          echo "Qt6Config.cmake found at:"
+          echo "$QT6_CONFIG"
+
+      - name: Build ScanTailor Advanced for Windows
+        run: |
+          export PATH="$HOME/mxe/usr/bin:$PATH"
+          export CCACHE_DISABLE=1
+
+          rm -rf build-win-static
+
+          QT6_CONFIG="$(find "$HOME/mxe/usr/x86_64-w64-mingw32.static" -name "Qt6Config.cmake" | head -1)"
+          QT6_DIR="$(dirname "$QT6_CONFIG")"
+
+          echo "Using Qt6_DIR=$QT6_DIR"
+
+          x86_64-w64-mingw32.static-cmake \
+            -S . \
+            -B build-win-static \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$HOME/mxe/usr/x86_64-w64-mingw32.static" \
+            -DQt6_DIR="$QT6_DIR"
+
+          cmake --build build-win-static --config Release --parallel
+
+      - name: Package EXE
+        run: |
+          mkdir -p package
+
+          echo "Found EXE files:"
+          find build-win-static -name "*.exe" -print
+
+          EXE_FILE="$(find build-win-static \( -name "scantailor-advanced.exe" -o -name "scantailor.exe" -o -name "scantailor*.exe" \) | head -1)"
+
+          if [ -z "$EXE_FILE" ]; then
+            echo "Error: ScanTailor EXE was not found."
+            exit 1
+          fi
+
+          echo "Packaging:"
+          echo "$EXE_FILE"
+
+          cp "$EXE_FILE" package/
+
+          cd package
+          zip -r ../scantailor-advanced-windows-x64.zip .
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scantailor-advanced-windows-x64
+          path: scantailor-advanced-windows-x64.zip
