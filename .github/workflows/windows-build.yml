@@ -64,6 +64,7 @@ jobs:
           which x86_64-w64-mingw32.static-cmake
           which x86_64-w64-mingw32.static-gcc
           which x86_64-w64-mingw32.static-g++
+          which x86_64-w64-mingw32.static-windres
 
           echo "Checking Qt6Config.cmake..."
           find "$HOME/mxe/usr/x86_64-w64-mingw32.static" -name "Qt6Config.cmake" -print
@@ -93,17 +94,8 @@ jobs:
 
           p = Path("cmake/CopyToBuildDir.cmake")
           text = p.read_text()
-
           original = text
 
-          # The original CMake file references:
-          #   $<TARGET_FILE_DIR:scantailor>
-          #
-          # During MXE static cross-build, this can fail at CMake generate time
-          # with:
-          #   No target "scantailor"
-          #
-          # For static Windows build, use the build directory instead.
           text = text.replace(
               "$<TARGET_FILE_DIR:scantailor>",
               "${CMAKE_BINARY_DIR}"
@@ -123,6 +115,24 @@ jobs:
         run: |
           export PATH="$HOME/mxe/usr/bin:$PATH"
           export CCACHE_DISABLE=1
+
+          echo "Checking MXE windres..."
+          which x86_64-w64-mingw32.static-windres
+
+          mkdir -p "$RUNNER_TEMP/mxe-wrappers"
+
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            'exec x86_64-w64-mingw32.static-windres "$@"' \
+            > "$RUNNER_TEMP/mxe-wrappers/windres"
+
+          chmod +x "$RUNNER_TEMP/mxe-wrappers/windres"
+
+          export PATH="$RUNNER_TEMP/mxe-wrappers:$PATH"
+
+          echo "Using windres:"
+          which windres
+          windres --version || true
 
           rm -rf build-win-static
 
@@ -144,6 +154,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="$HOME/mxe/usr/x86_64-w64-mingw32.static" \
             -DQt6_DIR="$QT6_DIR" \
+            -DCMAKE_RC_COMPILER="$HOME/mxe/usr/bin/x86_64-w64-mingw32.static-windres" \
             -Wno-dev
 
           cmake --build build-win-static --config Release --parallel
