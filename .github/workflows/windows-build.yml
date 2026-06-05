@@ -119,21 +119,6 @@ jobs:
           echo "Checking MXE windres..."
           which x86_64-w64-mingw32.static-windres
 
-          mkdir -p "$RUNNER_TEMP/mxe-wrappers"
-
-          printf '%s\n' \
-            '#!/usr/bin/env bash' \
-            'exec x86_64-w64-mingw32.static-windres "$@"' \
-            > "$RUNNER_TEMP/mxe-wrappers/windres"
-
-          chmod +x "$RUNNER_TEMP/mxe-wrappers/windres"
-
-          export PATH="$RUNNER_TEMP/mxe-wrappers:$PATH"
-
-          echo "Using windres:"
-          which windres
-          windres --version || true
-
           rm -rf build-win-static
 
           QT6_CONFIG="$(find "$HOME/mxe/usr/x86_64-w64-mingw32.static" -name "Qt6Config.cmake" | head -1)"
@@ -156,6 +141,19 @@ jobs:
             -DQt6_DIR="$QT6_DIR" \
             -DCMAKE_RC_COMPILER="$HOME/mxe/usr/bin/x86_64-w64-mingw32.static-windres" \
             -Wno-dev
+
+          echo "Checking generated resources.rc..."
+          cat build-win-static/resources.rc || true
+
+          echo "Checking icon file exists..."
+          ls -la src/resources/win32/ || true
+          test -f src/resources/win32/scantailor-advanced.ico
+
+          echo "Fixing Windows-style paths in resources.rc for Linux-hosted windres..."
+          sed -i 's#\\#/#g' build-win-static/resources.rc
+
+          echo "Patched resources.rc:"
+          cat build-win-static/resources.rc
 
           cmake --build build-win-static --config Release --parallel
 
