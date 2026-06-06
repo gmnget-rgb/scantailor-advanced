@@ -119,6 +119,21 @@ jobs:
           echo "Checking MXE windres..."
           which x86_64-w64-mingw32.static-windres
 
+          mkdir -p "$RUNNER_TEMP/mxe-wrappers"
+
+          printf '%s\n' \
+            '#!/usr/bin/env bash' \
+            'exec x86_64-w64-mingw32.static-windres "$@"' \
+            > "$RUNNER_TEMP/mxe-wrappers/windres"
+
+          chmod +x "$RUNNER_TEMP/mxe-wrappers/windres"
+
+          export PATH="$RUNNER_TEMP/mxe-wrappers:$PATH"
+
+          echo "Using windres:"
+          which windres
+          windres --version || true
+
           rm -rf build-win-static
 
           QT6_CONFIG="$(find "$HOME/mxe/usr/x86_64-w64-mingw32.static" -name "Qt6Config.cmake" | head -1)"
@@ -139,7 +154,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="$HOME/mxe/usr/x86_64-w64-mingw32.static" \
             -DQt6_DIR="$QT6_DIR" \
-            -DCMAKE_RC_COMPILER="$HOME/mxe/usr/bin/x86_64-w64-mingw32.static-windres" \
+            -DCMAKE_RC_COMPILER="$RUNNER_TEMP/mxe-wrappers/windres" \
             -Wno-dev
 
           echo "Checking generated resources.rc..."
